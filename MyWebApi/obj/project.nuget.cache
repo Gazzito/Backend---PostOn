@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "9Xw0x4xB1UgSglALtE19sn+uBO6QmQQlArKz+g8gOWkd3p/H9pYiphFF9CFy2xLh+FmDozDTsE+k2nT8Z0qQ6Q==",
+  "dgSpecHash": "NOoOe/LeBB+4g71XxHR/utK5uJV5ikecWGCUJhwDh+ElIUm+sj5/x/rjH/G/NW25hw50n+MFEJO5DFelodEXnQ==",
   "success": true,
   "projectFilePath": "C:\\Users\\Telmo\\Desktop\\Backend - PostOn\\MyWebApi\\MyWebApi.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\Telmo\\.nuget\\packages\\bcrypt.net-next\\4.0.3\\bcrypt.net-next.4.0.3.nupkg.sha512",
     "C:\\Users\\Telmo\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\Telmo\\.nuget\\packages\\microsoft.aspnetcore.authentication.jwtbearer\\8.0.0\\microsoft.aspnetcore.authentication.jwtbearer.8.0.0.nupkg.sha512",
     "C:\\Users\\Telmo\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.0\\microsoft.aspnetcore.openapi.8.0.0.nupkg.sha512",

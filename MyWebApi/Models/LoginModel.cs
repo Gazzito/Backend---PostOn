@@ -1,4 +1,6 @@
 // User.cs (Model)
+using System.ComponentModel.DataAnnotations;
+
 public class Login
 {
     public int Id { get; set; }
@@ -6,5 +8,11 @@ public class Login
     // Other login properties...
 
     public int UserId { get; set; } // Foreign key
+
+    [Required]
+    public string Username { get; set; }
+
+    public string PasswordHash { get; set; }
+    public string Salt { get; set; }
     public User User { get; set; } // Navigation property
 }
