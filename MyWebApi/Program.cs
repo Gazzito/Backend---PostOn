@@ -2,28 +2,28 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using servicesToUse;
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddSignalR();
 
 // Configure PostgreSQL connection
 var connectionString = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=omfgnoob24413;";
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
-
+var  MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
 // Add services to the container.
 // ...
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
-
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(builder =>
-    {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
-    });
+    options.AddPolicy(name: MyAllowSpecificOrigins,
+                      policy  =>
+                      {
+                          policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod();
+                      });
 });
 var app = builder.Build();
-
+app.MapHub<FriendsHub>("/friendsHub");
+app.UseCors(MyAllowSpecificOrigins);
 
 app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 {
@@ -37,28 +37,28 @@ app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 
 app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
 {
+    Console.WriteLine(user);
     // Assuming a new Login is provided along with the User data
     if (user.Login != null)
     {
         // Check if the user with the same email already exists
-        var existingEmail = await dbContext.Users
+        var existingUsername = await dbContext.Users
             .Include(u => u.Login)
             .FirstOrDefaultAsync(u => u.Login.Username == user.Login.Username);
-
-        if (existingEmail != null)
-        {
-            // User with the same email already exists
-            return Results.BadRequest("User with the same email already exists.");
-        }
-
-         var existingUsername = await dbContext.Users
-            .Include(u => u)
-            .FirstOrDefaultAsync(u => u.Email == user.Email);
 
         if (existingUsername != null)
         {
             // User with the same email already exists
             return Results.BadRequest("User with the same username already exists.");
+        }
+
+         var existingEmail = await dbContext.Users
+            .FirstOrDefaultAsync(u => u.Email == user.Email);
+
+        if (existingEmail != null)
+        {
+            // User with the same email already exists
+            return Results.BadRequest("User with the same email already exists.");
         }
          
         // Generate a random salt
@@ -81,42 +81,42 @@ app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
     return Results.BadRequest("Login information is required.");
 }).WithName("RegisterUsers");
 
-app.MapPost("/login", async (User user, ApplicationDbContext dbContext) =>
+app.MapPost("/login", async (Login login, ApplicationDbContext dbContext) =>
 {
-    // Assuming a new Login is provided along with the User data
-    if (user.Login != null)
+    if (login.Username != "")
     {
-        // Ensure UserId is 0 to allow for identity column generation
-         
-        // Generate a random salt
-        string salt = PasswordManager.Salt();
+        var existingLogin = await dbContext.Logins
+            .Include(l => l.User) // Ensure the User navigation property is loaded
+            .FirstOrDefaultAsync(u => u.Username == login.Username);
 
-        // Combine the password and salt, then hash the result
-        string hashedPassword = PasswordManager.HashPassword(user.Login.PasswordHash, salt);
+        if (existingLogin != null && PasswordManager.VerifyPassword(login.PasswordHash, existingLogin.PasswordHash))
+        {
+            // Update the corresponding User entity
+            existingLogin.User.IsOnline = true;
 
-        // Store both the hashed password and the salt in the database
-        user.Login.PasswordHash = hashedPassword;
-        user.Login.Salt = salt;
+            // Save changes to the database
+            await dbContext.SaveChangesAsync();
 
-        // Add the User and associated Login
-        dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
-
-        return Results.Created($"/users/{user.UserId}", user);
+            return Results.Ok("True");
+        }
+        else
+        {
+            return Results.BadRequest("Wrong information!");
+        }
     }
 
     return Results.BadRequest("Login information is required.");
 }).WithName("login");
 
 
-app.MapGet("/logins", async (ApplicationDbContext dbContext) =>
+app.MapGet("/status", async (ApplicationDbContext dbContext) =>
 {
-    var logins = await dbContext.Logins
-        .Include(l => l.User) // Include the related User entity
+    var users = await dbContext.Users
+        .Include(l => l.Login) // Include the related User entity
         .ToListAsync();
 
-    return logins;
+    return users;
 })
-.WithName("GetLogins");
+.WithName("VerifyStatus");
 
 app.Run();

@@ -19,6 +19,17 @@ public class User
     public string Biography { get; set; }
 
     public string ProfilePic { get; set; }
-
+    
+    [Required]
+    public bool IsOnline { get; set; }
     public Login Login { get; set; } // Navigation property
+
+    // Navigation properties for friendships
+    public ICollection<Friendship> Friendships { get; set; } = new List<Friendship>();
+
+    // Navigation properties for friendships where the user is the friend
+    public ICollection<Friendship> FriendshipsAsFriend { get; set; } = new List<Friendship>();
+
+    public List<UserChat> UserChats { get; set; }
+    public List<Message> Messages { get; set; }
 }

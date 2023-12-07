@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -10,9 +11,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MyWebApi.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20231207123635_FriendShipsUpdateV1")]
+    partial class FriendShipsUpdateV1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -20,23 +23,6 @@ namespace MyWebApi.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Chat", b =>
-                {
-                    b.Property<int>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ID"));
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("ID");
-
-                    b.ToTable("Chats");
-                });
 
             modelBuilder.Entity("Friendship", b =>
                 {
@@ -71,7 +57,7 @@ namespace MyWebApi.Migrations
                     b.HasIndex("CreatedBy", "FriendId")
                         .IsUnique();
 
-                    b.ToTable("Friendships");
+                    b.ToTable("Friendship");
                 });
 
             modelBuilder.Entity("Login", b =>
@@ -106,36 +92,6 @@ namespace MyWebApi.Migrations
                         .IsUnique();
 
                     b.ToTable("Logins");
-                });
-
-            modelBuilder.Entity("Message", b =>
-                {
-                    b.Property<int>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ID"));
-
-                    b.Property<int>("ChatID")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UserID")
-                        .HasColumnType("integer");
-
-                    b.HasKey("ID");
-
-                    b.HasIndex("ChatID");
-
-                    b.HasIndex("UserID");
-
-                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("User", b =>
@@ -177,24 +133,6 @@ namespace MyWebApi.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("UserChat", b =>
-                {
-                    b.Property<int>("UserID")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ChatID")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ID")
-                        .HasColumnType("integer");
-
-                    b.HasKey("UserID", "ChatID");
-
-                    b.HasIndex("ChatID");
-
-                    b.ToTable("UserChats");
-                });
-
             modelBuilder.Entity("Friendship", b =>
                 {
                     b.HasOne("User", "User")
@@ -225,51 +163,6 @@ namespace MyWebApi.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Message", b =>
-                {
-                    b.HasOne("Chat", "Chat")
-                        .WithMany("Messages")
-                        .HasForeignKey("ChatID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("User", "User")
-                        .WithMany("Messages")
-                        .HasForeignKey("UserID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Chat");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("UserChat", b =>
-                {
-                    b.HasOne("Chat", "Chat")
-                        .WithMany("UserChats")
-                        .HasForeignKey("ChatID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("User", "User")
-                        .WithMany("UserChats")
-                        .HasForeignKey("UserID")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Chat");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Chat", b =>
-                {
-                    b.Navigation("Messages");
-
-                    b.Navigation("UserChats");
-                });
-
             modelBuilder.Entity("User", b =>
                 {
                     b.Navigation("Friendships");
@@ -278,10 +171,6 @@ namespace MyWebApi.Migrations
 
                     b.Navigation("Login")
                         .IsRequired();
-
-                    b.Navigation("Messages");
-
-                    b.Navigation("UserChats");
                 });
 #pragma warning restore 612, 618
         }
