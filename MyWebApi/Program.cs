@@ -1,14 +1,35 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using servicesToUse;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
+
+// Add authentication services
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = "Backend",
+            ValidAudience = "PostOnFront",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("areallyhardpasswordtocrack"))
+        };
+    });
 
 // Configure PostgreSQL connection
 var connectionString = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=omfgnoob24413;";
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
-var  MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 
 // Add services to the container.
 // ...
@@ -16,14 +37,20 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins,
-                      policy  =>
+                      policy =>
                       {
                           policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod();
                       });
 });
 var app = builder.Build();
+
 app.MapHub<FriendsHub>("/friendsHub");
+
 app.UseCors(MyAllowSpecificOrigins);
+// Use authentication middleware
+app.UseAuthentication();
+
+app.UseAuthorization();
 
 app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 {
@@ -52,15 +79,15 @@ app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
             return Results.BadRequest("User with the same username already exists.");
         }
 
-         var existingEmail = await dbContext.Users
-            .FirstOrDefaultAsync(u => u.Email == user.Email);
+        var existingEmail = await dbContext.Users
+           .FirstOrDefaultAsync(u => u.Email == user.Email);
 
         if (existingEmail != null)
         {
             // User with the same email already exists
             return Results.BadRequest("User with the same email already exists.");
         }
-         
+
         // Generate a random salt
         string salt = PasswordManager.Salt();
 
@@ -97,7 +124,25 @@ app.MapPost("/login", async (Login login, ApplicationDbContext dbContext) =>
             // Save changes to the database
             await dbContext.SaveChangesAsync();
 
-            return Results.Ok("True");
+            var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, existingLogin.UserId.ToString()),
+            new Claim(ClaimTypes.Name, login.Username),
+            // Add additional claims as needed
+        };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("areallyhardpasswordtocrack"));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: "Backend",
+                audience: "PostOnFront",
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(30), // Token expiration time
+                signingCredentials: creds
+            );
+
+            return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
         }
         else
         {

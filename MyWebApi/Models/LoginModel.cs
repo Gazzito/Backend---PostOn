@@ -15,6 +15,14 @@ public class Login
     public string PasswordHash { get; set; }
     public string Salt { get; set; }
 
+    public Role Role { get; set; }
    
     public User User { get; set; } // Navigation property
+}
+
+public enum Role
+{
+    Guest,
+    Registed,
+    Admin
 }
