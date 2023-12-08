@@ -3,6 +3,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using servicesToUse;
@@ -21,10 +23,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = "Backend",
             ValidAudience = "PostOnFront",
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("areallyhardpasswordtocrack"))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("areallyhardpasswordtocrackaaaaaaaaaaaaaaaa"))
         };
     });
-
+builder.Services.AddAuthorization();
 // Configure PostgreSQL connection
 var connectionString = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=omfgnoob24413;";
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -39,7 +41,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: MyAllowSpecificOrigins,
                       policy =>
                       {
-                          policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod();
+                          policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
                       });
 });
 var app = builder.Build();
@@ -51,6 +53,14 @@ app.UseCors(MyAllowSpecificOrigins);
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.MapPost("/token", async (HttpContext context) =>
+{
+    var authorizationHeader = context.Request.Headers["Authorization"].ToString();
+    var token = authorizationHeader.Replace("Bearer ", "");
+    return servicesToUse.JWTToken.refreshToken(token);
+}).RequireAuthorization()
+.WithName("GetToken");
 
 app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 {
@@ -108,7 +118,7 @@ app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
     return Results.BadRequest("Login information is required.");
 }).WithName("RegisterUsers");
 
-app.MapPost("/login", async (Login login, ApplicationDbContext dbContext) =>
+app.MapPost("/login", async (Login login, ApplicationDbContext dbContext, IHubContext<FriendsHub> friendsHubContext) =>
 {
     if (login.Username != "")
     {
@@ -124,32 +134,42 @@ app.MapPost("/login", async (Login login, ApplicationDbContext dbContext) =>
             // Save changes to the database
             await dbContext.SaveChangesAsync();
 
-            var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, existingLogin.UserId.ToString()),
-            new Claim(ClaimTypes.Name, login.Username),
-            // Add additional claims as needed
-        };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("areallyhardpasswordtocrack"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            // Fetch the friends of the logged-in user
+            var friendships = await dbContext.Friendships
+    .Where(f => (f.CreatedBy == existingLogin.UserId && f.FriendId != existingLogin.UserId) || (f.FriendId == existingLogin.UserId && f.CreatedBy != existingLogin.UserId))
+    .ToListAsync();
 
-            var token = new JwtSecurityToken(
-                issuer: "Backend",
-                audience: "PostOnFront",
-                claims: claims,
-                expires: DateTime.Now.AddMinutes(30), // Token expiration time
-                signingCredentials: creds
-            );
 
-            return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+            foreach (var friendship in friendships)
+            {
+                int friendUserId;
+
+                if (friendship.CreatedBy == existingLogin.UserId)
+                {
+                    // The friend is the one who received the friend request
+                    friendUserId = friendship.FriendId;
+                    await friendsHubContext.Clients.User(friendUserId.ToString()).SendAsync("FriendOnline", existingLogin.UserId);
+                    Console.WriteLine(friendUserId + "CreatedBy");
+                }
+                else
+                {
+                    // The friend is the one who initiated the friend request
+                    friendUserId = friendship.CreatedBy;
+                    await friendsHubContext.Clients.User(friendUserId.ToString()).SendAsync("FriendOnline", existingLogin.UserId);
+                    Console.WriteLine(friendUserId + "FriendId");
+                }
+
+
+            }
+            return Results.Ok(servicesToUse.JWTToken.generateToken(existingLogin.UserId.ToString(), existingLogin.Username.ToString(), existingLogin.Role.ToString()));
         }
         else
         {
             return Results.BadRequest("Wrong information!");
         }
-    }
 
+    }
     return Results.BadRequest("Login information is required.");
 }).WithName("login");
 

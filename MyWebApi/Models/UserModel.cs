@@ -22,6 +22,9 @@ public class User
     
     [Required]
     public bool IsOnline { get; set; }
+
+    public DateTime LastSeeOn { get; set; }
+   
     public Login Login { get; set; } // Navigation property
 
     // Navigation properties for friendships

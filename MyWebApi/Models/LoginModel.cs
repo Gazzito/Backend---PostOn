@@ -16,7 +16,7 @@ public class Login
     public string Salt { get; set; }
 
     public Role Role { get; set; }
-   
+
     public User User { get; set; } // Navigation property
 }
 
