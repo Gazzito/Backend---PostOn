@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using servicesToUse;
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddSignalR();
+
 
 // Add authentication services
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -38,17 +38,24 @@ var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options => options.SerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(name: MyAllowSpecificOrigins,
+    options.AddDefaultPolicy(
                       policy =>
                       {
                           policy.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod().AllowCredentials();
                       });
 });
+
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = true; // Enable detailed error messages
+});
 var app = builder.Build();
+
 
 app.MapHub<FriendsHub>("/friendsHub");
 
-app.UseCors(MyAllowSpecificOrigins);
+app.UseCors();
 // Use authentication middleware
 app.UseAuthentication();
 
