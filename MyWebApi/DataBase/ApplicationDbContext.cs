@@ -40,13 +40,7 @@ public class ApplicationDbContext : DbContext
         .WithMany(u => u.Friendships)
         .HasForeignKey(f => f.CreatedBy)
         .OnDelete(DeleteBehavior.Restrict);
-
-    modelBuilder.Entity<Friendship>()
-        .HasOne(f => f.Friend)
-        .WithMany(u => u.FriendshipsAsFriend)
-        .HasForeignKey(f => f.FriendId)
-        .OnDelete(DeleteBehavior.Restrict);
-
+        
     // Add a unique constraint for the combination of USERID and FRIENDID
         modelBuilder.Entity<Friendship>()
             .HasIndex(f => new { f.CreatedBy, f.FriendId })

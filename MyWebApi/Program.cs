@@ -69,6 +69,50 @@ app.MapPost("/token", async (HttpContext context) =>
 }).RequireAuthorization()
 .WithName("GetToken");
 
+app.MapGet("/userDetails", async (string userId, ApplicationDbContext dbContext) =>
+{
+    var userDetails = await dbContext.Users
+        .Where(u => u.UserId == int.Parse(userId))
+        .Select(u => u) // Include the related User entity
+        .ToListAsync();
+
+    return userDetails;
+}).RequireAuthorization()
+.WithName("GetUserDetails");
+
+app.MapGet("/friends", async (string userId, ApplicationDbContext dbContext) =>
+{
+    var friendIdsCreatedBy = await dbContext.Friendships
+        .Where(f => f.CreatedBy == int.Parse(userId) && f.CreatedBy != f.FriendId)
+        .Select(f => f.FriendId)
+        .ToListAsync();
+
+    var friendIdsFriendId = await dbContext.Friendships
+        .Where(f => f.FriendId == int.Parse(userId) && f.CreatedBy != f.FriendId)
+        .Select(f => f.CreatedBy)
+        .ToListAsync();
+
+    var friendIds = friendIdsCreatedBy.Union(friendIdsFriendId);
+
+    var friends = await dbContext.Users
+        .Where(u => friendIds.Contains(u.UserId))
+        .Select(user => new
+        {
+            userId = user.UserId,
+            firstName = user.FirstName,
+            lastName = user.LastName,
+            email = user.Email,
+            profilePic = user.ProfilePic
+        })
+        .ToListAsync();
+
+    return Results.Ok(friends);
+})
+.WithName("GetFriends").RequireAuthorization();
+
+
+
+
 app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 {
     var users = await dbContext.Users
@@ -77,7 +121,7 @@ app.MapGet("/users", async (ApplicationDbContext dbContext) =>
 
     return users;
 })
-.WithName("GetUsers");
+.WithName("GetUsers").RequireAuthorization();
 
 app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
 {

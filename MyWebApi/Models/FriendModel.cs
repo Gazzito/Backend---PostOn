@@ -13,7 +13,6 @@ public class Friendship
     public FriendState State { get; set; }
     // Navigation properties
     public User User { get; set; }
-    public User Friend { get; set; }
 }
 
 
