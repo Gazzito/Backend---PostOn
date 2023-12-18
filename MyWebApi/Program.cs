@@ -80,15 +80,60 @@ app.MapGet("/userDetails", async (string userId, ApplicationDbContext dbContext)
 }).RequireAuthorization()
 .WithName("GetUserDetails");
 
+app.MapGet("/friendPosts", async (string userId, ApplicationDbContext dbContext) =>
+{
+    var userDetails = await dbContext.Users
+        .Where(u => u.UserId == int.Parse(userId))
+        .Select(u => u) // Include the related User entity
+        .ToListAsync();
+
+    return userDetails;
+}).RequireAuthorization()
+.WithName("GetFriendPosts");
+
+app.MapPost("/requestFriendship", async (int userRequestingId, int userReceivingId, ApplicationDbContext dbContext) =>
+{
+    // Check if a friendship request already exists between these users
+    var existingFriendship = await dbContext.Friendships
+        .FirstOrDefaultAsync(f => (f.CreatedBy == userRequestingId && f.FriendId == userReceivingId)
+                               || (f.CreatedBy == userReceivingId && f.FriendId == userRequestingId));
+
+    if (existingFriendship != null)
+    {
+        return Results.BadRequest("A friendship request already exists between these users.");
+    }
+
+    var newFriendship = new Friendship
+    {
+        CreatedBy = userRequestingId,
+        FriendId = userReceivingId,
+        CreatedOn = DateTime.UtcNow,
+        UpdatedBy = userRequestingId,
+        UpdatedOn = DateTime.UtcNow,
+        State = FriendState.Pending
+    };
+
+    dbContext.Friendships.Add(newFriendship);
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok(new { Message = "Friendship request sent successfully." });
+})
+.RequireAuthorization()
+.WithName("RequestFriendship");
+
 app.MapGet("/friends", async (string userId, ApplicationDbContext dbContext) =>
 {
+    var parsedUserId = int.Parse(userId); // Convert userId to int once and reuse
+
     var friendIdsCreatedBy = await dbContext.Friendships
-        .Where(f => f.CreatedBy == int.Parse(userId) && f.CreatedBy != f.FriendId)
+        .Where(f => f.CreatedBy == parsedUserId && f.FriendId != parsedUserId
+                    && f.State == FriendState.Accepted) // Check for Accepted state
         .Select(f => f.FriendId)
         .ToListAsync();
 
     var friendIdsFriendId = await dbContext.Friendships
-        .Where(f => f.FriendId == int.Parse(userId) && f.CreatedBy != f.FriendId)
+        .Where(f => f.FriendId == parsedUserId && f.CreatedBy != parsedUserId
+                    && f.State == FriendState.Accepted) // Check for Accepted state
         .Select(f => f.CreatedBy)
         .ToListAsync();
 
@@ -96,13 +141,16 @@ app.MapGet("/friends", async (string userId, ApplicationDbContext dbContext) =>
 
     var friends = await dbContext.Users
         .Where(u => friendIds.Contains(u.UserId))
+        .OrderByDescending(u => u.IsOnline) // This will sort the users, putting online users first
         .Select(user => new
         {
             userId = user.UserId,
             firstName = user.FirstName,
             lastName = user.LastName,
             email = user.Email,
-            profilePic = user.ProfilePic
+            profilePic = user.ProfilePic,
+            isOnline = user.IsOnline,
+            lastSeen = user.LastSeeOn
         })
         .ToListAsync();
 
@@ -113,13 +161,19 @@ app.MapGet("/friends", async (string userId, ApplicationDbContext dbContext) =>
 
 
 
-app.MapGet("/users", async (ApplicationDbContext dbContext) =>
-{
-    var users = await dbContext.Users
-        .Include(l => l.Login) // Include the related User entity
-        .ToListAsync();
 
-    return users;
+app.MapGet("/users", async (ApplicationDbContext dbContext, string search) =>
+{
+
+       search = search.ToLower();
+        var users = await dbContext.Users
+       .Where(u => u.FirstName.ToLower().StartsWith(search) || u.LastName.ToLower().StartsWith(search))
+       .OrderBy(u => u.FirstName) // or any other ordering logic
+       .Take(10) // Limit the result to 6 users
+       .ToListAsync();
+
+        return users;
+
 })
 .WithName("GetUsers").RequireAuthorization();
 

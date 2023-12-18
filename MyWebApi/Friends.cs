@@ -11,6 +11,19 @@ public class FriendsHub : Hub
     public async Task FriendBackOnline(string userId, ApplicationDbContext dbContext)
     {
         Console.WriteLine("uSER BackOnline UID: " + userId);
+
+        var userDetails = await dbContext.Users
+             .FirstOrDefaultAsync(u => u.UserId == int.Parse(userId));
+
+
+
+        if (userDetails != null)
+        {
+            userDetails.LastSeeOn = DateTime.UtcNow; // Update the lastSeen time
+            userDetails.IsOnline = true; // Set isOnline to false
+            await dbContext.SaveChangesAsync(); // Save the changes to the database
+        }
+
         var friendships = await dbContext.Friendships
    .Where(f => (f.CreatedBy == int.Parse(userId) && f.FriendId != int.Parse(userId)) || (f.FriendId == int.Parse(userId) && f.CreatedBy != int.Parse(userId)))
    .ToListAsync();
@@ -47,8 +60,20 @@ public class FriendsHub : Hub
     }
 
 
-    public async Task FriendOnline(string userId)
+    public async Task FriendOnline(string userId, ApplicationDbContext dbContext)
     {
+
+        var userDetails = await dbContext.Users
+       .FirstOrDefaultAsync(u => u.UserId == int.Parse(userId));
+
+
+        if (userDetails != null)
+        {
+            userDetails.LastSeeOn = DateTime.UtcNow; // Update the lastSeen time
+            userDetails.IsOnline = true; // Set isOnline to false
+            await dbContext.SaveChangesAsync(); // Save the changes to the database
+        }
+
         // Check if the user is in the mapping
         if (userConnectionMapping.TryGetValue(userId, out var connectionId))
         {
@@ -58,6 +83,17 @@ public class FriendsHub : Hub
 
     public async Task FriendOffline(string userId, ApplicationDbContext dbContext)
     {
+
+        var userDetails = await dbContext.Users
+       .FirstOrDefaultAsync(u => u.UserId == int.Parse(userId));
+
+    
+        if (userDetails != null)
+        {
+          userDetails.LastSeeOn = DateTime.UtcNow; // Update the lastSeen time
+            userDetails.IsOnline = false; // Set isOnline to false
+            await dbContext.SaveChangesAsync(); // Save the changes to the database
+        }
         Console.WriteLine("uSER OFFLINE? UID: " + userId);
         var friendships = await dbContext.Friendships
    .Where(f => (f.CreatedBy == int.Parse(userId) && f.FriendId != int.Parse(userId)) || (f.FriendId == int.Parse(userId) && f.CreatedBy != int.Parse(userId)))
@@ -115,10 +151,23 @@ public class FriendsHub : Hub
 
     [Authorize]
     public override async Task OnDisconnectedAsync(Exception exception)
-    {
-        Console.WriteLine($"Client disconnected: {Context.ConnectionId}");
+{
+    var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    Console.WriteLine($"Client disconnected: {Context.ConnectionId}");
 
-        await base.OnDisconnectedAsync(exception);
+    if (!string.IsNullOrEmpty(userId))
+    {
+        // Assuming you have an instance of your ApplicationDbContext
+        using (var dbContext = new ApplicationDbContext())
+        {
+            await FriendOffline(userId, dbContext);
+        }
+
+        // Remove user from connection mapping
+        userConnectionMapping.Remove(userId);
     }
+
+    await base.OnDisconnectedAsync(exception);
+}
 }
 

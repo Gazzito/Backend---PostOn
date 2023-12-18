@@ -17,6 +17,10 @@ public class ApplicationDbContext : DbContext
         ChangeTracker.LazyLoadingEnabled = true;
     }
 
+    public ApplicationDbContext()
+    {
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
 
