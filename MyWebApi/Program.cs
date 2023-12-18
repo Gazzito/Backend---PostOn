@@ -69,6 +69,52 @@ app.MapPost("/token", async (HttpContext context) =>
 }).RequireAuthorization()
 .WithName("GetToken");
 
+
+app.MapPost("/setOffline", async (int userId, ApplicationDbContext dbContext) =>
+{
+    var user = await dbContext.Users.FindAsync(userId);
+    if (user == null)
+    {
+        return Results.NotFound("User not found.");
+    }
+
+    user.IsOnline = false;
+    user.LastSeeOn = DateTime.UtcNow;
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok("User set to offline.");
+}).RequireAuthorization()
+.WithName("SetOffline");
+ 
+
+app.MapPost("/likePost", async (ApplicationDbContext dbContext, int postId) =>
+{
+    var post = await dbContext.Posts.FindAsync(postId);
+    if (post == null)
+    {
+        return Results.NotFound("Post not found.");
+    }
+
+    post.Likes += 1;
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok(new { Likes = post.Likes });
+});
+
+app.MapPost("/dislikePost", async (ApplicationDbContext dbContext, int postId) =>
+{
+    var post = await dbContext.Posts.FindAsync(postId);
+    if (post == null)
+    {
+        return Results.NotFound("Post not found.");
+    }
+
+    post.Dislikes += 1;
+    await dbContext.SaveChangesAsync();
+
+    return Results.Ok(new { Dislikes = post.Dislikes });
+});
+
 app.MapGet("/userDetails", async (string userId, ApplicationDbContext dbContext) =>
 {
     var userDetails = await dbContext.Users
@@ -80,16 +126,84 @@ app.MapGet("/userDetails", async (string userId, ApplicationDbContext dbContext)
 }).RequireAuthorization()
 .WithName("GetUserDetails");
 
-app.MapGet("/friendPosts", async (string userId, ApplicationDbContext dbContext) =>
+// Endpoint to fetch posts by friends
+app.MapGet("/friendsPosts", async (ApplicationDbContext dbContext, int userId) =>
 {
-    var userDetails = await dbContext.Users
-        .Where(u => u.UserId == int.Parse(userId))
-        .Select(u => u) // Include the related User entity
+    // Assuming there is a Friendship entity that tracks friendships
+    // and a Post entity that tracks posts.
+    
+    // First, get the IDs of the user's friends
+     var friendIdsCreatedBy = await dbContext.Friendships
+        .Where(f => f.CreatedBy == userId && f.FriendId != userId
+                    && f.State == FriendState.Accepted) // Check for Accepted state
+        .Select(f => f.FriendId)
         .ToListAsync();
 
-    return userDetails;
+    var friendIdsFriendId = await dbContext.Friendships
+        .Where(f => f.FriendId == userId && f.CreatedBy != userId
+                    && f.State == FriendState.Accepted) // Check for Accepted state
+        .Select(f => f.CreatedBy)
+        .ToListAsync();
+
+      // Include the user's own ID in the list of IDs to fetch posts for
+    var allPostUserIds = friendIdsCreatedBy.Union(friendIdsFriendId).Append(userId).Distinct();
+
+var friendsPosts = await dbContext.Posts
+        .Where(p => allPostUserIds.Contains(p.CreatedBy))
+        .OrderByDescending(p => p.CreatedOn)
+        .Select(p => new
+        {
+            PostId = p.Id,
+            Content = p.Content,
+            Likes = p.Likes,
+            Dislikes = p.Dislikes,
+            CreatedOn = p.CreatedOn,
+            CreatedBy = p.CreatedBy,
+            User = new
+            {
+                UserId = p.User.UserId,
+                FirstName = p.User.FirstName,
+                LastName = p.User.LastName,
+                ProfilePic = p.User.ProfilePic
+            }
+        })
+        .ToListAsync();
+    return Results.Ok(friendsPosts);
+}).RequireAuthorization();
+
+app.MapPost("/createPost", async (Post request, ApplicationDbContext dbContext) =>
+{   
+    
+    // You would typically perform some validation here
+    if (string.IsNullOrWhiteSpace(request.Content))
+    {
+        return Results.BadRequest("Content cannot be empty.");
+    }
+
+    var user = await dbContext.Users.FindAsync(request.CreatedBy);
+    if (user == null)
+    {
+        return Results.NotFound("User not found.");
+    }
+
+    var newPost = new Post
+    {
+        CreatedBy = request.CreatedBy,
+        Content = request.Content,
+        Likes = 0, // Assuming new posts start with no likes
+        Dislikes = 0, // Assuming new posts start with no dislikes
+        CreatedOn = DateTime.UtcNow,
+        UpdatedBy = request.CreatedBy, // Assuming the creator is the one updating it now
+        UpdatedOn = DateTime.UtcNow,
+        User = user
+    };
+
+    dbContext.Posts.Add(newPost);
+    await dbContext.SaveChangesAsync();
+
+    return Results.Created($"/get-post/{newPost.Id}", newPost);
 }).RequireAuthorization()
-.WithName("GetFriendPosts");
+.WithName("CreatePost");
 
 app.MapPost("/requestFriendship", async (int userRequestingId, int userReceivingId, ApplicationDbContext dbContext) =>
 {
@@ -110,7 +224,7 @@ app.MapPost("/requestFriendship", async (int userRequestingId, int userReceiving
         CreatedOn = DateTime.UtcNow,
         UpdatedBy = userRequestingId,
         UpdatedOn = DateTime.UtcNow,
-        State = FriendState.Pending
+        State = (FriendState)1
     };
 
     dbContext.Friendships.Add(newFriendship);
@@ -162,23 +276,30 @@ app.MapGet("/friends", async (string userId, ApplicationDbContext dbContext) =>
 
 
 
-app.MapGet("/users", async (ApplicationDbContext dbContext, string search) =>
+app.MapGet("/users", async (ApplicationDbContext dbContext, string search, int userId) =>
 {
+    search = search.ToLower();
 
-       search = search.ToLower();
-        var users = await dbContext.Users
-       .Where(u => u.FirstName.ToLower().StartsWith(search) || u.LastName.ToLower().StartsWith(search))
-       .OrderBy(u => u.FirstName) // or any other ordering logic
-       .Take(10) // Limit the result to 6 users
-       .ToListAsync();
+    var friendIds = dbContext.Friendships
+                    .Where(f => f.CreatedBy == userId || f.FriendId == userId)
+                    .Select(f => f.CreatedBy == userId ? f.FriendId : f.CreatedBy);
 
-        return users;
+    var users = await dbContext.Users
+        .Where(u => !friendIds.Contains(u.UserId) && (u.UserId != userId)
+                    && (u.FirstName.ToLower().StartsWith(search) || u.LastName.ToLower().StartsWith(search)))
+        .OrderBy(u => u.FirstName)
+        .Take(10)
+        .ToListAsync();
 
+    return users;
 })
 .WithName("GetUsers").RequireAuthorization();
 
 app.MapPost("/register", async (User user, ApplicationDbContext dbContext) =>
 {
+
+
+
     Console.WriteLine(user);
     // Assuming a new Login is provided along with the User data
     if (user.Login != null)

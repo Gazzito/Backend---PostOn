@@ -11,6 +11,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Message> Messages { get; set; }
     public DbSet<UserChat> UserChats { get; set; }
 
+    public DbSet<Post> Posts { get; set; }
+
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
@@ -51,7 +53,10 @@ public class ApplicationDbContext : DbContext
             .IsUnique();
 
 
-
+modelBuilder.Entity<Post>()
+            .HasOne(p => p.User)
+            .WithMany(u => u.Posts)
+            .HasForeignKey(p => p.CreatedBy);
 
         modelBuilder.Entity<UserChat>()
         .HasKey(uc => new { uc.UserID, uc.ChatID });

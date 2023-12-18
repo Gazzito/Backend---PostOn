@@ -30,6 +30,8 @@ public class User
     // Navigation properties for friendships
     public ICollection<Friendship> Friendships { get; set; } = new List<Friendship>();
 
+    public ICollection<Post> Posts { get; set; } = new List<Post>();
+
     // Navigation properties for friendships where the user is the friend
     public ICollection<Friendship> FriendshipsAsFriend { get; set; } = new List<Friendship>();
 

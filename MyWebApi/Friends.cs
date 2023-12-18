@@ -151,23 +151,11 @@ public class FriendsHub : Hub
 
     [Authorize]
     public override async Task OnDisconnectedAsync(Exception exception)
-{
-    var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    Console.WriteLine($"Client disconnected: {Context.ConnectionId}");
-
-    if (!string.IsNullOrEmpty(userId))
     {
-        // Assuming you have an instance of your ApplicationDbContext
-        using (var dbContext = new ApplicationDbContext())
-        {
-            await FriendOffline(userId, dbContext);
-        }
+        Console.WriteLine($"Client disconnected: {Context.ConnectionId}");
 
-        // Remove user from connection mapping
-        userConnectionMapping.Remove(userId);
+
+        await base.OnDisconnectedAsync(exception);
     }
-
-    await base.OnDisconnectedAsync(exception);
-}
 }
 
